@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Fabric.js 標籤編輯器</title>
+    <script src="fabric.min.js"></script>
+    <script src="jquery.min.js"></script>
+    <link href="bootstrap.min.css" rel="stylesheet" />
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script> -->
+    <style>
+        body {
+            margin: 0;
+            font-family: "Microsoft JhengHei", sans-serif;
+            overflow: hidden;
+            /* display: flex;
+            height: 100vh;
+            */
+        }
+
+        #sidebar-left {
+            width: 180px;
+            background: #f5f5f5;
+            border-right: 1px solid #ccc;
+            overflow-y: auto;
+        }
+
+        #main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+        }
+
+        #topbar {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            border-bottom: 1px solid #ccc;
+            padding: 5px;
+            background: #fafafa;
+            z-index: 100;
+        }
+
+        #toolbar {
+            display: flex;
+            gap: 4px;
+            border-bottom: 1px solid #ccc;
+            padding: 5px;
+            background: #f9f9f9;
+            z-index: 100;
+        }
+
+        #canvas-main {
+            display: flex !important;
+            width: 100vw;
+            flex-direction: row-reverse;
+        }
+
+        #canvas-container {
+            /* flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #fff;
+            overflow-x: auto; */
+            position: relative;
+            display: inline-block;
+            background: #fff;
+            margin: 0;
+            padding: 0;
+            overflow-y: auto;
+            overflow-x: visible;
+            min-height: calc(100vh - 82px);
+        }
+
+        #Fabric-container {
+            position: absolute;
+            left: 30px;
+            top: 30px;
+            padding: 0px 20px 20px 0px;
+        }
+
+        /* 上方水平尺規 */
+        #ruler-top {
+            position: sticky;
+            top: 0;
+            margin-left: 30px;
+            /* 為了避開左邊尺規寬度 */
+            height: 30px;
+            right: 0;
+            background: #f5f5f5;
+            border-bottom: 1px solid #ccc;
+            font-size: 10px;
+            font-family: monospace;
+            overflow-x: clip;
+            z-index: 99;
+        }
+
+        /* 左側垂直尺規 */
+        #ruler-left {
+            position: fixed;
+            z-index: 98;
+            top: 30px;
+            /* 為了避開上方尺規高度 */
+            left: 0;
+            width: 30px;
+            bottom: 0;
+            background: #f5f5f5;
+            border-right: 1px solid #ccc;
+            font-size: 10px;
+            font-family: monospace;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            overflow-y: clip;
+
+        }
+
+        canvas {
+            border: 1px solid #ccc;
+        }
+
+        .sidebar-right {
+            min-width: 328px;
+            background: #f9f9f9;
+            border-left: 1px solid #ccc;
+            padding: 8px;
+            height: calc(100vh - 82px);
+            z-index: 101;
+            border: 1px solid #ccc;
+
+        }
+
+        .layer-panel {
+            max-height: 400px;
+            overflow-y: auto;
+            min-height: 250px;
+            border-bottom: 1px solid #000;
+            margin: 2px 0px;
+        }
+
+        .layer-item {
+            padding: 4px 6px;
+            border-bottom: 1px solid #ddd;
+            cursor: pointer;
+        }
+
+        .layer-item:hover {
+            background: #e3f2fd;
+        }
+
+        /* 假設您已經有類似的 CSS，這裡強調 flex 讓內容和按鈕並排 */
+        .layer-item {
+            display: flex;
+            justify-content: space-between;
+            /* 內容和按鈕分開 */
+            align-items: center;
+            padding: 4px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+            font-size: 0.9em;
+        }
+
+        .layer-item-name {
+            /* 用一個 span 包裹名稱，以處理 overflow */
+            flex-grow: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-right: 4px;
+        }
+
+        .delete-layer-btn {
+            padding: 1px 4px;
+            margin-left: 4px;
+            font-size: 0.8em;
+            color: red;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            background: #fff0f0;
+        }
+
+        .property-panel {
+            overflow-y: auto;
+            min-height: 250px;
+            margin: 2px 0px;
+        }
+
+        .divtable {
+            display: table;
+        }
+
+        .divtr {
+            display: table-row;
+        }
+
+        .propTr {
+            display: none;
+            /* display: table-row; */
+        }
+
+        .divtd {
+            display: table-cell;
+            border: 1px solid #ccc;
+            padding: 2px 4px;
+            vertical-align: middle;
+        }
+
+        .wtdpct {
+            width: 45%;
+        }
+
+        #propertyPanel input {
+            width: 94%;
+            height: auto;
+            border: none;
+        }
+
+        .IdBar,
+        .TextBar {
+            display: none;
+        }
+    </style>
+    <link href="fabricDraggable.css" rel="stylesheet" />
+</head>
+
+<body>
+
+
+    <!-- 中間主區域 -->
+    <div id="main">
+        <div id="topbar">
+            <button id="btnSave">💾儲存</button>
+            <button id="btnLoad">📂讀取</button>
+            <button id="btnUndo">↪️復原</button>
+            <button id="btnRedo">↩️取消復原</button>
+            <label>畫布大小：
+                <select id="canvasSize">
+                    <option value="600x400">600x400</option>
+                    <option value="800x600">800x600</option>
+                    <option value="1000x500">1000x500</option>
+                    <option value="">自定義</option><!--CustomCanvasSize-->
+                </select>
+            </label>
+            <label class="CustomCanvasSize" style="display: none;">
+                <input type="number" id="canvasWidth" min="0" style="margin: 0px 4px;width: 80px;">X
+                <input type="number" id="canvasHeight" min="0" style="margin: 0px 4px;width: 80px;">
+                <input type="text" id="unit" value="px" hidden>
+            </label>
+        </div>
+        <div id="toolbar">
+            <button id="addLine">➖直線</button>
+            <button id="addRectangle">🔲框線</button>
+            <button id="addText">🅰️文字</button>
+            <button id="addQR">🔳QRCode</button>
+            <button id="addBarcode">📊條碼</button>
+            <span>|</span>
+            <button id="bringToFront">⏫最上層</button>
+            <button id="sendToBack">⏬最下層</button>
+            <button id="bringForward">🔺上一層</button>
+            <button id="sendBackward">🔻下一層</button>
+        </div>
+
+    </div>
+    <div id="canvas-main">
+        <!-- class="d-flex" style="width: 100vw;" -->
+        <div class="col" id="canvas-container">
+            <div id="ruler-top"></div>
+            <div id="ruler-left"></div>
+            <div id="Fabric-container">
+                <canvas id="c" width="600" height="400" style="left: 30px;"></canvas>
+            </div>
+
+        </div>
+        <!-- 右側屬性 -->
+        <style>
+
+        </style>
+        <div id="sidebar-right" class="sidebar-right">
+            <!-- <div id="layer-container">
+                <h4 style="margin:4px;cursor: default;">📋圖層</h4>
+            </div> -->
+            <div id="layerPanel" class="layer-panel">
+                <h4 id="layerTitle" style="margin:4px;cursor: move;">📦物件</h4>
+                <div id="layerList"></div>
+            </div>
+            <div id="propertyPanel" class="property-panel">
+                <h4 style="margin:4px;cursor: default;">⚙️屬性</h4>
+                <div class="divtable">
+                    <div class="divtr">
+                        <div class="divtd wtdpct">屬性</div>
+                        <div class="divtd " style="width: 75%;">值</div>
+                    </div>
+                    <div class="propTr IdBar">
+                        <div class="divtd wtdpct">ID</div>
+                        <div class="divtd " style="width: 75%;"><input type="text" id="propId"></div>
+                    </div>
+                    <div class="propTr TextBar">
+                        <div class="divtd wtdpct">內容</div>
+                        <div class="divtd " style="width: 75%;"><textarea type="text" id="propText"
+                                style="width: 100%;"></textarea></div>
+                    </div>
+                    <div class="propTr BarCodeBar">
+                        <div class="divtd wtdpct">BarCode</div>
+                        <div class="divtd " style="width: 75%;"><input type="text" id="BarCodeText"
+                                style="width: 100%;"></div>
+                    </div>
+                    <div class="divtr">
+                        <div class="divtd wtdpct">Top</div>
+                        <div class="divtd " style="width: 75%;"><input type="number" id="propTop" min="" value="">
+                        </div>
+                    </div>
+                    <div class="divtr">
+                        <div class="divtd wtdpct">Left</div>
+                        <div class="divtd " style="width: 75%;"><input type="number" id="propLeft" min="" value="">
+                        </div>
+                    </div>
+                    <div class="propTr WidthBar">
+                        <div class="divtd wtdpct">
+                            <span class="WidthLabel">寬度</span>
+                            <span class="LengthLabel" style="display: none;">長度</span>
+                        </div>
+                        <div class="divtd " style="width: 75%;"><input type="number" id="propWidth" min="" value="">
+                        </div>
+                    </div>
+                    <div class="propTr HeightBar">
+                        <div class="divtd wtdpct">高度</div>
+                        <div class="divtd " style="width: 75%;"><input type="number" id="propHeight" min="" value="">
+                        </div>
+                    </div>
+                    <div class="propTr strokeWidthBar">
+                        <div class="divtd wtdpct">線條粗細</div>
+                        <div class="divtd " style="width: 75%;"><input type="number" id="strokeWidth" min="" value="">
+                        </div>
+                    </div>
+                    <div class="propTr RadiusBar">
+                        <div class="divtd wtdpct">框線圓角</div>
+                        <div class="divtd " style="width: 75%;"><input type="number" id="propRadius" min="" value="">
+                        </div>
+                    </div>
+                    <div class="propTr fontSizeBar">
+                        <div class="divtd wtdpct">字形大小</div>
+                        <div class="divtd " style="width: 75%;"><input type="number" id="fontSize" min="" value="">
+                        </div>
+                    </div>
+                    <div class="propTr ScaleBar">
+                        <div class="divtd wtdpct">比例</div>
+                        <div class="divtd " style="width: 75%;"><input type="number" id="propScale" min="1" value="">
+                        </div>
+                    </div>
+                    <div class="propTr BarFormatBar">
+                        <div class="divtd wtdpct">條碼格式</div>
+                        <div class="divtd " style="width: 75%;">
+                            <select id="barcodeFormat" class="form-control">
+                                <option value="CODE128">Code 128 (通用)</option>
+                                <option value="CODE39">Code 39 (工業)</option>
+                                <option value="EAN13">EAN 13 (商品)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="propTr BarFormatBar">
+                        <div class="divtd wtdpct">顯示數值</div>
+                        <div class="divtd " style="width: 75%;">
+                            <input type="checkbox" id="displayValue" checked="true">
+                        </div>
+                    </div>
+                    <!-- 對齊方式 -->
+                    <div class="propTr TextAlignBar">
+                        <div class="divtd wtdpct">對齊</div>
+                        <div class="divtd" style="width: 75%;">
+                            <select id="propTextAlign">
+                                <option value="left">靠左對齊</option>
+                                <option value="center">置中對齊</option>
+                                <option value="right">靠右對齊</option>
+                            </select>
+                        </div>
+                    </div>
+                    <!-- 字型選擇 -->
+                    <div class="propTr FontFamilyBar">
+                        <div class="divtd wtdpct">字型</div>
+                        <div class="divtd" style="width: 75%;">
+                            <select id="propFontFamily" style="width: 100%;">
+                                <option value="Arial">Arial</option>
+                                <option value="Helvetica">Helvetica</option>
+                                <option value="Times New Roman">Times New Roman</option>
+                                <option value="Courier New">Courier New</option>
+                                <option value="Verdana">Verdana</option>
+                                <option value="Tahoma">Tahoma</option>
+                                <option value="Calibri">Calibri</option>
+                                <option value="Georgia">Georgia</option>
+                                <option value="SimSun">SimSun（宋體）</option>
+                                <option value="Microsoft JhengHei">M'JhengHei（微軟正黑體）</option>
+                                <option value="DFKai-SB">DFKai-SB（標楷體）</option>
+                                <option value="PMingLiU">PMingLiU（新細明體）</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- QRCode Level-->
+                    <div class="propTr QRLevelBar">
+                        <div class="divtd wtdpct">容錯等級</div>
+                        <div class="divtd" style="width: 75%;">
+                            <select id="propQRLevel">
+                                <option value="L">L (7%)</option>
+                                <option value="M">M (15%)</option>
+                                <option value="Q">Q (25%)</option>
+                                <option value="H">H (30%)</option>
+
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <div class="propTr BarFormatPreviewBar">
+                <p class="mt-2 text-muted" id="previewStatus">請輸入有效數據以生成條碼。</p>
+            </div>
+
+        </div>
+    </div>
+    <script src="bootstrap.bundle.min.js"></script>
+    <script src="fabric.html.js"></script>
+    <script src="qrcode.min.js"></script>
+    <script src="jsbarcode.all.min.js"></script>
+    <script src="BarcodeImage.js"></script>
+    <script src="modal-draggable.js"></script>
+    <script src="toolbox.js"></script>
+
+    <script>
+        // === 尺規繪製 ===
+        const dpi = 96; // 假設 1 inch = 25.4mm = 96px
+        const mmPerPx = 25.4 / dpi;
+        const rulerStep = 1; // 每 10 mm 一格
+
+        function drawRulers(overrideWidth = 2000, overrideHeight = 1200) {
+            const top = document.getElementById('ruler-top');
+            const topHeight = top.offsetHeight;
+            const left = document.getElementById('ruler-left');
+            const leftWidth = left.offsetWidth;
+
+            const FabricCanvas = document.getElementById('Fabric-container');
+            top.style.minWidth = FabricCanvas.offsetWidth + 'px';
+            const rect = top.getBoundingClientRect();
+            left.style.minHeight = FabricCanvas.offsetHeight + 'px';
+            left.style.top = rect.bottom + 'px';
+            //定位在Top下方
+            left.style.left = (rect.left - 30) + 'px';
+
+            const width = 2000 > overrideWidth ? 2000 : overrideWidth; //  canvas.width;
+            const height = 1200 > overrideHeight ? 1200 : overrideHeight;// canvas.height;
+
+            // 清空舊標籤
+            top.innerHTML = '';
+            left.innerHTML = '';
+
+            // 畫上方刻度
+            const totalMM_X = width * mmPerPx;
+            for (let mm = 0; mm <= totalMM_X; mm += rulerStep) {
+                const px = mm / mmPerPx;
+                const mark = document.createElement('div');
+                mark.style.position = 'absolute';
+                // 修正：移除 + 30 偏移量
+                mark.style.left = `${px}px`;
+                //mark.style.top = '15px';
+
+                // 如果 top 元素本身已經有 padding 或 margin，這裡可能還需要調整
+                if ([1, 2, 3, 4, 6, 7, 8, 9].includes(mm % 10)) {
+                    mark.style.top = `${topHeight - 5}px`;
+                    mark.style.height = '5px';
+                } else if (mm % 10 === 5) {
+                    mark.style.top = `${topHeight - 10}px`;
+                    mark.style.height = '10px';
+                } else if (mm % 10 === 0) {
+                    mark.style.top = `${topHeight - 15}px`;
+                    mark.style.height = '15px';
+                    mark.style.border = '1px solid #000';
+                }
+                //mark.style.height = '15px';
+                mark.style.width = '1px';
+                mark.style.background = '#666';
+                mark.title = `${mm} mm`;
+                top.appendChild(mark);
+
+                if (mm % 10 === 0) {
+                    const label = document.createElement('div');
+                    label.style.position = 'absolute';
+                    // 修正：移除 + 32 偏移量，並調整為 px 基準
+                    // 為了讓標籤置中或稍微偏右，可以加上一個小偏移量 (例如 2px)
+                    label.style.left = `${px + 2}px`;
+                    label.style.top = '0';
+                    label.innerText = mm;
+                    top.appendChild(label);
+                }
+            }
+
+            // 畫左側刻度
+            const totalMM_Y = height * mmPerPx;
+            for (let mm = 0; mm <= totalMM_Y; mm += rulerStep) {
+                const px = mm / mmPerPx;
+                const mark = document.createElement('div');
+                mark.style.position = 'absolute';
+                mark.style.top = `${px}px`;
+                //mark.style.left = '15px';
+                if ([1, 2, 3, 4, 6, 7, 8, 9].includes(mm % 10)) {
+                    mark.style.left = `${leftWidth - 5}px`;
+                    mark.style.width = '5px';
+                } else if (mm % 10 === 5) {
+                    mark.style.left = `${leftWidth - 10}px`;
+                    mark.style.width = '10px';
+                } else if (mm % 10 === 0) {
+                    mark.style.left = `${leftWidth - 15}px`;
+                    mark.style.width = '15px';
+                    mark.style.border = '1px solid #000';
+                }
+                //mark.style.width = '15px';
+                mark.style.height = '1px';
+                mark.style.background = '#666';
+                mark.title = `${mm} mm`;
+                left.appendChild(mark);
+
+                if (mm % 10 === 0) {
+                    const label = document.createElement('div');
+                    label.style.position = 'absolute';
+                    label.style.top = `${px + 2}px`;
+                    label.style.left = '0';
+                    label.innerText = mm;
+                    left.appendChild(label);
+                }
+            }
+
+        }
+
+
+        drawRulers();
+        const canvasContainer = document.getElementById('canvas-container');
+        const rulerLeft = document.getElementById('ruler-left');
+        const rulerTop = document.getElementById('ruler-top');
+
+        canvasContainer.addEventListener('scroll', () => {
+            rulerLeft.style.transform = `translateY(${-canvasContainer.scrollTop}px)`;
+            //rulerTop.style.transform = `translateX(${-canvasContainer.scrollLeft}px)`;
+        });
+        toolboxInit({
+            bodyid: 'sidebar-right',
+            dargid: 'layerTitle',
+            onmouseup: function () {
+                const top = document.getElementById('ruler-top').getBoundingClientRect();
+                const left = document.getElementById('ruler-left');
+
+                const toolbox = document.getElementById('sidebar-right');
+                if (toolbox.style.flexDirection == 'row') {
+                    left.style.left = (0) + 'px';
+                } else {
+                    left.style.left = (top.left - 30) + 'px';
+                }
+            }
+        });
+    </script>
+
+</body>
+
+</html>

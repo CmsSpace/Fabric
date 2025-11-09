@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>條碼生成器測試 - JsBarcode 顧問範例</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <style>
+        /* 確保 SVG 條碼居中顯示 */
+        #barcodeCanvas {
+            margin: 20px auto;
+            display: block;
+        }
+
+        /* 限制條碼預覽區塊的最大寬度 */
+        .barcode-preview-container {
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            border-radius: .25rem;
+            min-height: 300px;
+            /* 確保內容區有足夠高度 */
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container mt-5">
+        <h1 class="mb-4">條碼生成與驗證 (JsBarcode 範例)</h1>
+        <div class="row">
+
+            <div class="col-md-4">
+                <div class="p-3 border rounded">
+                    <h3>⚙️ 條碼設定</h3>
+                    <form id="barcodeSettingsForm">
+
+                        <div class="form-group">
+                            <label for="barcodeFormat">條碼格式</label>
+                            <select id="barcodeFormat" class="form-control">
+                                <option value="CODE128">Code 128 (通用)</option>
+                                <option value="EAN13">EAN 13 (商品)</option>
+                                <option value="CODE39">Code 39 (工業)</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="barcodeData">條碼數值 <span id="validationHint"
+                                    class="text-info small"></span></label>
+                            <input type="text" id="barcodeData" class="form-control" placeholder="輸入條碼數據"
+                                value="ASSET-12345">
+                            <div id="dataFeedback" class="invalid-feedback"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="barcodeHeight">高度 (px)</label>
+                            <input type="number" id="barcodeHeight" class="form-control" value="80" min="20">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="barcodeScale">模組寬度比例 (X)</label>
+                            <input type="number" id="barcodeScale" class="form-control" value="2" min="1" max="5">
+                            <small class="form-text text-muted">數值越大，條碼越粗。</small>
+                        </div>
+
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="displayValue" checked>
+                            <label class="form-check-label" for="displayValue">顯示條碼數值</label>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <div class="barcode-preview-container text-center">
+                    <h3>📊 條碼預覽</h3>
+                    <svg id="barcodeCanvas"></svg>
+                    <p class="mt-2 text-muted" id="previewStatus">請輸入有效數據以生成條碼。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * 根據選定的格式驗證條碼數據
+         * (程式碼與前次回應相同，用於數據驗證)
+         */
+        function validateBarcodeData(format, data) {
+            const result = { isValid: false, message: '', hint: '' };
+
+            if (!data || data.trim() === '') {
+                result.message = "數值不能為空。";
+                result.hint = "請輸入數值";
+                return result;
+            }
+
+            switch (format) {
+                case 'EAN13':
+                    // EAN13 必須是 12 位數字 (JsBarcode 會自動計算第 13 位校驗碼)
+                    if (!/^\d{12}$/.test(data)) {
+                        result.message = "EAN13 格式需要嚴格的 12 位數字。";
+                        result.hint = "需輸入 12 位數字";
+                    } else {
+                        result.isValid = true;
+                    }
+                    break;
+                case 'CODE39':
+                    // CODE39 限制為大寫字母、數字和特定符號 ( - . $ / + % ) 及空格
+                    if (!/^[A-Z0-9\-\.\$\/\+\% ]+$/.test(data.toUpperCase())) {
+                        result.message = "Code 39 僅支援大寫字母、數字和特定符號。";
+                        result.hint = "支援 A-Z, 0-9, -.$/+% ";
+                    } else {
+                        result.isValid = true;
+                    }
+                    break;
+                case 'CODE128':
+                default:
+                    // CODE128 最通用，幾乎沒有字元集限制
+                    result.isValid = true;
+                    result.hint = "支援幾乎所有字元，無固定長度限制";
+                    break;
+            }
+            result.isValid = true;
+            return result;
+        }
+
+        $(document).ready(function () {
+            const $formControls = $('#barcodeSettingsForm input, #barcodeSettingsForm select');
+            const $dataInput = $('#barcodeData');
+            const $canvas = $('#barcodeCanvas');
+            const $dataFeedback = $('#dataFeedback');
+            const $validationHint = $('#validationHint');
+            const $previewStatus = $('#previewStatus');
+
+            // 監聽所有控制項的變化：input 適合文字輸入，change 適合 select/checkbox
+            $formControls.on('input change', generateBarcode);
+
+            // 初始化生成一次預設條碼
+            generateBarcode();
+
+            function generateBarcode() {
+                const format = $('#barcodeFormat').val();
+                const data = $dataInput.val().trim();
+                // 注意：JsBarcode 的 width 參數實際上是 X-dimension，建議用 CSS 寬度或設定 scale 屬性
+                const height = parseInt($('#barcodeHeight').val());
+                const scale = parseInt($('#barcodeScale').val());
+                const displayValue = $('#displayValue').prop('checked');
+
+                // --- 1. 驗證數值 ---
+                const validation = validateBarcodeData(format, data);
+                $validationHint.text(`(${validation.hint})`);
+
+                if (!validation.isValid) {
+                    // 驗證失敗：顯示錯誤狀態
+                    $dataInput.addClass('is-invalid').removeClass('is-valid');
+                    $dataFeedback.text(validation.message);
+                    $canvas.empty();
+                    $previewStatus.text('⚠️ 無效的數據格式，請修正。').removeClass('text-muted text-success').addClass('text-danger');
+                    return;
+                }
+
+                // --- 2. 數值驗證成功，準備生成 ---
+                $dataInput.removeClass('is-invalid').addClass('is-valid');
+                $dataFeedback.empty();
+                $previewStatus.text('✅ 預覽生成中...').removeClass('text-danger').addClass('text-muted');
+
+                try {
+                    JsBarcode("#barcodeCanvas", data, {
+                        format: format,            // 選定的條碼格式
+                        height: height,            // 高度 (px)
+                        // width 參數控制條碼單元寬度，用 scale 控制較直覺
+                        width: scale,              // 模組寬度 (X-dimension)
+                        displayValue: displayValue,// 是否顯示數值
+                        text: data,                // 確保顯示的文字就是輸入的數據
+                        fontSize: 18,              // 字體大小
+                        margin: 10,                // 邊距
+                        xml: true                  // 確保輸出為可讀的 SVG (通常是 JsBarcode 預設)
+                    });
+                    $previewStatus.text(`✅ 條碼格式: ${format}，已成功生成。`).removeClass('text-muted').addClass('text-success');
+
+                } catch (e) {
+                    // 捕獲 JsBarcode 運行時可能拋出的錯誤
+                    console.error("JsBarcode error:", e);
+                    $canvas.empty();
+                    $previewStatus.text('❌ 生成失敗，請檢查輸入數據。').removeClass('text-muted text-success').addClass('text-danger');
+                }
+            }
+        });
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8">
+    <title>可拖曳並自動吸附的工具箱</title>
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            background: #f0f0f0;
+            user-select: none;
+        }
+
+        /* 工具箱 */
+        #toolbox {
+            position: fixed;
+            width: 220px;
+            height: 300px;
+            top: 100px;
+            left: 20px;
+            background: #2196f3;
+            color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+            cursor: move;
+            padding: 10px;
+            transition: all 0.25s ease;
+            overflow-y: auto;
+        }
+
+        #toolbox.docked {
+            border-radius: 0;
+            top: 0;
+            height: 100vh;
+        }
+
+        #toolbox .title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            cursor: grab;
+        }
+
+        #content {
+            padding: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="toolbox">
+        <div class="title">🧰 工具箱</div>
+        <div>元件 1</div>
+        <div>元件 2</div>
+        <div>元件 3</div>
+        <div>元件 4</div>
+        <div>元件 5</div>
+    </div>
+
+    <div id="content">
+        <h1>主畫面區域</h1>
+        <p>這裡可以放畫布、表單或其他內容。</p>
+    </div>
+
+    <script>
+        const toolbox = document.getElementById('toolbox');
+        let dragging = false;
+        let offsetX = 0, offsetY = 0;
+        const SNAP_DISTANCE = 100; // 吸附距離
+
+        toolbox.addEventListener('mousedown', e => {
+            dragging = true;
+            toolbox.style.transition = 'none';
+            offsetX = e.clientX - toolbox.offsetLeft;
+            offsetY = e.clientY - toolbox.offsetTop;
+        });
+
+        document.addEventListener('mousemove', e => {
+            if (!dragging) return;
+
+            let x = e.clientX - offsetX;
+            let y = e.clientY - offsetY;
+
+            // 限制在視窗範圍內
+            x = Math.max(0, Math.min(x, window.innerWidth - toolbox.offsetWidth));
+            y = Math.max(0, Math.min(y, window.innerHeight - toolbox.offsetHeight));
+
+            toolbox.style.left = x + 'px';
+            toolbox.style.top = y + 'px';
+            toolbox.style.right = ''; // 清除 Dock 模式
+            toolbox.classList.remove('docked');
+        });
+
+        document.addEventListener('mouseup', e => {
+            if (!dragging) return;
+            dragging = false;
+            toolbox.style.transition = 'all 0.25s ease';
+
+            const midX = window.innerWidth / 2;
+            const boxCenter = toolbox.offsetLeft + toolbox.offsetWidth / 2;
+
+            // Dock 左側
+            if (boxCenter < midX && toolbox.offsetLeft < SNAP_DISTANCE) {
+                toolbox.style.left = '0px';
+                toolbox.style.right = '';
+                toolbox.classList.add('docked');
+            }
+            // Dock 右側
+            else if (boxCenter >= midX &&
+                window.innerWidth - (toolbox.offsetLeft + toolbox.offsetWidth) < SNAP_DISTANCE) {
+                toolbox.style.left = '';
+                toolbox.style.right = '0px';
+                toolbox.classList.add('docked');
+            }
+        });
+
+        // 視窗大小改變時保持 Dock 高度
+        window.addEventListener('resize', () => {
+            if (toolbox.classList.contains('docked')) {
+                toolbox.style.height = '100vh';
+            }
+        });
+    </script>
+
+</body>
+
+</html>

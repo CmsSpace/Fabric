@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8">
+    <title>純 JS + CSS 類 BS Modal</title>
+    <!-- <style>
+        body {
+            font-family: "Segoe UI", sans-serif;
+            padding: 2rem;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            background-color: #0d6efd;
+            color: white;
+            border: none;
+            border-radius: 0.25rem;
+            cursor: pointer;
+        }
+
+        .modal {
+            position: fixed;
+            top: 100px;
+            left: 100px;
+            width: 400px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 0.5rem;
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+            display: none;
+            z-index: 1000;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-header {
+            padding: 0.75rem 1rem;
+            background-color: #f1f1f1;
+            border-bottom: 1px solid #ddd;
+            cursor: move;
+            font-weight: bold;
+        }
+
+        .modal-body {
+            padding: 1rem;
+        }
+
+        .modal-footer {
+            padding: 0.75rem 1rem;
+            text-align: right;
+            border-top: 1px solid #ddd;
+            background-color: #f9f9f9;
+        }
+
+        .close-btn {
+            background-color: #6c757d;
+        }
+    </style> -->
+</head>
+
+<body>
+
+    <h2>純 JS + CSS 類 Bootstrap Modal</h2>
+    <button class="btn" id="openModal">開啟 Modal</button>
+    <button class="btn" id="openCustomModal">開啟 Modal</button>
+
+    <div class="modal" id="customModal">
+        <div class="modal-header" id="modalHeader">可移動的 Modal</div>
+        <div class="modal-body">
+            這是一個模仿 Bootstrap 的 modal，使用純 JS 和 CSS 製作，沒有遮罩。
+        </div>
+        <div class="modal-footer">
+            <button class="btn close-btn" id="closeModal">關閉</button>
+        </div>
+    </div>
+
+    <script>
+        const openCustomModal = document.getElementById('openCustomModal');
+        openCustomModal.addEventListener('click', function () {
+            customModal({
+                id: 'customModal',
+                title: '可移動的 Modal',
+                content: '這是一個模仿 Bootstrap 的 modal，使用純 JS 和 CSS 製作，沒有遮罩。',
+                confirm: function (m) {
+                    console.log(m);
+                    m.remove();
+                }
+            });
+        });
+
+
+        function customModal(Event) {
+            if (Event.id === undefined || Event.id === '') Event.id = Math.random().toString(36).slice(2, 10);
+            const modal = document.createElement('div');
+            modal.id = Event.id
+            modal.classList.add('modal');
+            modal.style = `position: fixed;
+                        top: 100px;
+                        left: 100px;
+                        width: 400px;
+                        background-color: #fff;
+                        border: 1px solid #ccc;
+                        border-radius: 0.5rem;
+                        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+                        display: none;
+                        z-index: 1000;
+                        transition: opacity 0.3s ease;`;
+
+            const modalHeader = document.createElement('div');
+            modalHeader.classList.add('modal-header');
+            modalHeader.innerHTML = Event.title ?? '提示視窗';
+            modalHeader.style = `padding: 0.75rem 1rem;
+                        background-color: #f1f1f1;
+                        border-bottom: 1px solid #ddd;
+                        cursor: move;
+                        font-weight: bold;
+                        border-radius: 0.5rem 0.5rem 0 0;`;
+
+            const modalBody = document.createElement('div');
+            modalBody.classList.add('modal-body');
+            modalBody.style = `padding: 1rem;`;
+            modalBody.innerHTML = Event.content ?? '這是一個模仿 Bootstrap 的 modal，使用純 JS 和 CSS 製作，沒有遮罩。';
+
+            const modalFooter = document.createElement('div');
+            modalFooter.classList.add('modal-footer');
+            modalFooter.style = `padding: 0.75rem 1rem;
+                        text-align: right;
+                        border-top: 1px solid #ddd;
+                        background-color: #f9f9f9;
+                        border-radius: 0 0 0.5rem 0.5rem;`;
+
+
+            const btncss = `padding: 0.25rem 0.5rem;
+                            font-size: 0.875rem;
+                            border: none;
+                            border-radius: 0.25rem;
+                            cursor: pointer;
+                            transition: background-color 0.2s ease;
+                            margin-left: 0.5rem;`;
+
+            const okBtn = document.createElement('button');
+            okBtn.classList.add('btn');
+            okBtn.style = btncss + ` background-color: #0d6efd;color: white;`;
+            okBtn.innerHTML = '確定';
+            okBtn.addEventListener('click', () => {
+                if (typeof Event.confirm === 'function') Event.confirm(modal);
+            });
+
+            const closeBtn = document.createElement('button');
+            closeBtn.classList.add('btn');
+            closeBtn.classList.add('close-btn');
+            closeBtn.id = 'closeModal';
+            closeBtn.style = btncss + `  background-color: #6c757d;color: white;`;
+            closeBtn.innerHTML = '關閉';
+            closeBtn.addEventListener('click', () => {
+                modal.remove();
+            });
+
+            modal.appendChild(modalHeader);
+            modal.appendChild(modalBody);
+            modal.appendChild(modalFooter);
+            modalFooter.appendChild(okBtn);
+            modalFooter.appendChild(closeBtn);
+
+            document.body.appendChild(modal);
+            modal.style.display = 'block';
+            // 拖曳功能
+            let isDragging = false;
+            let offsetX = 0;
+            let offsetY = 0;
+
+            modalHeader.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                const rect = modal.getBoundingClientRect();
+                offsetX = e.clientX - rect.left;
+                offsetY = e.clientY - rect.top;
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (isDragging) {
+                    modal.style.left = `${e.clientX - offsetX}px`;
+                    modal.style.top = `${e.clientY - offsetY}px`;
+                }
+            });
+
+            document.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+        }
+
+
+
+    </script>
+    <script>
+        const modal = document.getElementById('customModal');
+        const openBtn = document.getElementById('openModal');
+        const closeBtn = document.getElementById('closeModal');
+        const header = document.getElementById('modalHeader');
+
+        openBtn.addEventListener('click', () => {
+            modal.style.display = 'block';
+        });
+
+        closeBtn.addEventListener('click', () => {
+            modal.style.display = 'none';
+        });
+
+        // 拖曳功能
+        let isDragging = false;
+        let offsetX = 0;
+        let offsetY = 0;
+
+        header.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            const rect = modal.getBoundingClientRect();
+            offsetX = e.clientX - rect.left;
+            offsetY = e.clientY - rect.top;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                modal.style.left = `${e.clientX - offsetX}px`;
+                modal.style.top = `${e.clientY - offsetY}px`;
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+    </script>
+
+</body>
+
+</html>

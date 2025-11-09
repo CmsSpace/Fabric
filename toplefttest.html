@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+
+    <link rel="stylesheet" href="bootstrap.min.css" />
+    <style>
+        body {
+            margin: 0;
+            font-family: "Microsoft JhengHei", sans-serif;
+            overflow: hidden;
+        }
+
+        #canvas-container {
+            position: relative;
+            display: inline-block;
+
+            background: #fff;
+            margin: 0;
+            padding: 0;
+            overflow-y: auto;
+            overflow-x: visible;
+        }
+
+        #Fabric-container {
+            position: absolute;
+            left: 30px;
+            top: 30px;
+        }
+
+        /* 上方水平尺規 */
+        #ruler-top {
+            position: sticky;
+            top: 0;
+            margin-left: 30px;
+            /* 為了避開左邊尺規寬度 */
+            height: 30px;
+            right: 0;
+            background: #f5f5f5;
+            border-bottom: 1px solid #ccc;
+            font-size: 10px;
+            font-family: monospace;
+            overflow-x: clip;
+            z-index: 999;
+        }
+
+        /* 左側垂直尺規 */
+        #ruler-left {
+            position: fixed;
+            z-index: 998;
+            top: 30px;
+            /* 為了避開上方尺規高度 */
+            left: 0;
+            width: 30px;
+            bottom: 0;
+            background: #f5f5f5;
+            border-right: 1px solid #ccc;
+            font-size: 10px;
+            font-family: monospace;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            overflow-y: clip;
+
+        }
+
+        canvas {
+            border: 1px solid #ccc;
+        }
+
+        #sidebar-right {
+            min-width: 300px;
+            background: #f9f9f9;
+            border-left: 1px solid #ccc;
+            padding: 8px;
+            height: calc(100vh - 82px);
+
+        }
+    </style>
+</head>
+
+<body>
+    <div class="d-flex">
+        <div class="col" id="canvas-container">
+            <div id="ruler-top"></div>
+            <div id="ruler-left"></div>
+            <div id="Fabric-container" style="background-color: aqua;">
+                <canvas id="c" width="600" height="400" style="left: 30px;"></canvas>
+            </div>
+
+        </div>
+        <div id="sidebar-right">
+
+        </div>
+    </div>
+
+
+    <script src="jquery.min.js"></script>
+    <script>
+
+        // === 尺規繪製 ===
+        const dpi = 96; // 假設 1 inch = 25.4mm = 96px
+        const mmPerPx = 25.4 / dpi;
+        const rulerStep = 1; // 每 10 mm 一格
+
+        function drawRulers(overrideWidth = 2000, overrideHeight = 1200) {
+            const top = document.getElementById('ruler-top');
+            const topHeight = top.offsetHeight;
+            const left = document.getElementById('ruler-left');
+            const leftWidth = left.offsetWidth;
+
+            const FabricCanvas = document.getElementById('Fabric-container');
+            top.style.minWidth = FabricCanvas.offsetWidth + 'px';
+            left.style.minHeight = FabricCanvas.offsetHeight + 'px';
+            left.style.top = FabricCanvas.offsetTop + 'px';
+            const width = 2000 > overrideWidth ? 2000 : overrideWidth; //  canvas.width;
+            const height = 1200 > overrideHeight ? 1200 : overrideHeight;// canvas.height;
+
+            // 清空舊標籤
+            top.innerHTML = '';
+            left.innerHTML = '';
+
+            // 畫上方刻度
+            const totalMM_X = width * mmPerPx;
+            for (let mm = 0; mm <= totalMM_X; mm += rulerStep) {
+                const px = mm / mmPerPx;
+                const mark = document.createElement('div');
+                mark.style.position = 'absolute';
+                // 修正：移除 + 30 偏移量
+                mark.style.left = `${px}px`;
+                //mark.style.top = '15px';
+
+                // 如果 top 元素本身已經有 padding 或 margin，這裡可能還需要調整
+                if ([1, 2, 3, 4, 6, 7, 8, 9].includes(mm % 10)) {
+                    mark.style.top = `${topHeight - 5}px`;
+                    mark.style.height = '5px';
+                } else if (mm % 10 === 5) {
+                    mark.style.top = `${topHeight - 10}px`;
+                    mark.style.height = '10px';
+                } else if (mm % 10 === 0) {
+                    mark.style.top = `${topHeight - 15}px`;
+                    mark.style.height = '15px';
+                }
+                //mark.style.height = '15px';
+                mark.style.width = '1px';
+                mark.style.background = '#666';
+                mark.title = `${mm} mm`;
+                top.appendChild(mark);
+
+                if (mm % 10 === 0) {
+                    const label = document.createElement('div');
+                    label.style.position = 'absolute';
+                    // 修正：移除 + 32 偏移量，並調整為 px 基準
+                    // 為了讓標籤置中或稍微偏右，可以加上一個小偏移量 (例如 2px)
+                    label.style.left = `${px + 2}px`;
+                    label.style.top = '0';
+                    label.innerText = mm;
+                    top.appendChild(label);
+                }
+            }
+
+            // 畫左側刻度
+            const totalMM_Y = height * mmPerPx;
+            for (let mm = 0; mm <= totalMM_Y; mm += rulerStep) {
+                const px = mm / mmPerPx;
+                const mark = document.createElement('div');
+                mark.style.position = 'absolute';
+                mark.style.top = `${px}px`;
+                //mark.style.left = '15px';
+                if ([1, 2, 3, 4, 6, 7, 8, 9].includes(mm % 10)) {
+                    mark.style.left = `${leftWidth - 5}px`;
+                    mark.style.width = '5px';
+                } else if (mm % 10 === 5) {
+                    mark.style.left = `${leftWidth - 10}px`;
+                    mark.style.width = '10px';
+                } else if (mm % 10 === 0) {
+                    mark.style.left = `${leftWidth - 15}px`;
+                    mark.style.width = '15px';
+                }
+                //mark.style.width = '15px';
+                mark.style.height = '1px';
+                mark.style.background = '#666';
+                mark.title = `${mm} mm`;
+                left.appendChild(mark);
+
+                if (mm % 10 === 0) {
+                    const label = document.createElement('div');
+                    label.style.position = 'absolute';
+                    label.style.top = `${px + 2}px`;
+                    label.style.left = '0';
+                    label.innerText = mm;
+                    left.appendChild(label);
+                }
+            }
+
+        }
+
+
+        drawRulers();
+        const canvasContainer = document.getElementById('canvas-container');
+        const rulerLeft = document.getElementById('ruler-left');
+        const rulerTop = document.getElementById('ruler-top');
+
+        canvasContainer.addEventListener('scroll', () => {
+            rulerLeft.style.transform = `translateY(${-canvasContainer.scrollTop}px)`;
+            rulerTop.style.transform = `translateX(${-canvasContainer.scrollLeft}px)`;
+        });
+    </script>
+</body>
+
+</html>

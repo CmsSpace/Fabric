@@ -1,0 +1,24 @@
+.layer-draggable {
+    position: fixed;
+    top: 100px;
+    left: 100px;
+    width: 400px;
+    background-color: #fff;
+    border: 1px solid #ccc;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    /* display: none; */
+    z-index: 1000;
+    transition: opacity 0.3s ease;
+    min-width: 300px;
+    background: #f9f9f9;
+    border-left: 1px solid #ccc;
+    padding: 8px;
+    height: auto;
+}
+
+.docked {
+    /* border-radius: 0;
+    top: 0;
+    height: 100vh; */
+}
