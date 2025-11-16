@@ -25,14 +25,25 @@ openModalDraggable = () => {
 }
 
 function ModalDraggable(Event) {
+    if (document.getElementById(Event.id)) return;
     if (Event.id === undefined || Event.id === '') Event.id = Math.random().toString(36).slice(2, 10);
     const modal = document.createElement('div');
     modal.id = Event.id
     //modal.classList.add('modal');
+
+    Event.width = (Event.width || '400') + 'px';
+    Event.height = (Event.height || 'auto') + 'px';
+    let topPos = parseInt(Event.top) || (window.innerHeight - parseInt(400)) / 2;
+    let leftPos = parseInt(Event.left) || (window.innerWidth - parseInt(Event.width)) / 2;
+    if (topPos < 0) topPos = 0;
+    if (leftPos < 0) leftPos = 0;
+    Event.top = (Event.top || topPos) + 'px';
+    Event.left = (Event.left || leftPos) + 'px';
     modal.style = `position: fixed;
-                        top: 100px;
-                        left: 100px;
-                        width: 400px;
+                        top: ${Event.top};
+                        left: ${Event.left};
+                        width: ${Event.width};
+                        height: ${Event.height};
                         background-color: #fff;
                         border: 1px solid #ccc;
                         border-radius: 0.5rem;

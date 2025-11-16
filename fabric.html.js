@@ -11,7 +11,7 @@ const MAX_HISTORY = 50;
 const JSON_PROPS = [
     'selectable', 'evented', 'rx', 'ry', 'fill', 'stroke', 'strokeWidth', 'comment',
     'fontSize', 'fontFamily', 'text', 'displayValue', 'strokeUniform', 'propId', 'propText',
-    'type', 'proptype', 'barcodeFormat', 'scale', 'porpmargin', 'propQRLevel', 'imageData'
+    'type', 'proptype', 'barcodeFormat', 'scale', 'porpmargin', 'propQRLevel', 'imageData', 'absPoints'
 ];
 
 // --------------------------------
@@ -29,6 +29,8 @@ function prepareCanvasForSave() {
             } catch {
                 obj.imageData = null;
             }
+        } else if (obj.proptype === 'line') {
+
         }
     });
 }
@@ -178,6 +180,15 @@ document.addEventListener('keydown', function (event) {
 // --------------------------------
 $('#btnSaveJson,#btnSave').click(() => {
     prepareCanvasForSave();
+
+    ModalDraggable({
+        id: 'saveModal',
+        title: '儲存畫布 JSON',
+        width: 800,
+
+        content: `<textarea id="saveJsonText" style="width:100%;height:300px;">${JSON.stringify(canvas.toJSON(JSON_PROPS), null, 2)}</textarea>`,
+    });
+    return;
     const jsonData = canvas.toJSON(JSON_PROPS);
     jsonData.canvasWidth = canvas.getWidth();
     jsonData.canvasHeight = canvas.getHeight();
@@ -220,6 +231,7 @@ function refreshLayers() {
     // 顯示從上層 (最前面) 開始列出，故使用 reverse
     canvas.getObjects().slice().reverse().forEach((obj) => {
         const _proptype = obj.proptype ?? obj.type;
+        if (_proptype == "circle") return;
         const name = `${_proptype}` + (_proptype == 'textbox' || (_proptype == 'qrcode' || _proptype == 'barcode') ? ` (${obj.propId})` : '');
 
         const item = $('<div>').addClass('layer-item');
@@ -282,9 +294,7 @@ function PropertyBar(obj) {
     const _proptype = obj.proptype ?? obj.type;
     switch (_proptype) {
         case 'line':
-            $('.WidthBar').css({ 'display': 'table-row' });
-            $('.WidthLabel').hide();
-            $('.LengthLabel').show();
+
             $('.strokeWidthBar').css({ 'display': 'table-row' });
             break;
         case 'rect':
@@ -352,7 +362,6 @@ function updatePropertyPanel(obj) {
     $('#propHeight').val(Math.trunc(currentHeight));
     $('#propRadius').val(obj.rx ? obj.rx : 0);
     $('#strokeWidth').val(obj.strokeWidth ?? 0);
-
 
     switch (_proptype) {
         case 'line':
@@ -647,14 +656,112 @@ function getModuleCount(_type) {
     return qrcodes.length;
 }
 
+var LineActive = false;
 $('#addLine').click(() => {
-    //直線
-    const line = new fabric.Line([50, position[0], 150, position[1]], { stroke: 'black', strokeWidth: 2, strokeUniform: true });
+    // //直線
+    // const line = new fabric.Line([50, position[0], 150, position[1]], { stroke: 'black', strokeWidth: 2, strokeUniform: true });
+    // addObject(line);
+    // position[0] += 10;
+    // position[1] += 10;
+    const x1 = 100, y1 = 100, x2 = 150, y2 = 150;
+    const line = new fabric.Line([x1, y1, x2, y2], {
+        stroke: '#0088ff',
+        strokeWidth: 4,
+        selectable: true,         // 可選取
+        hasControls: false,       // 不顯示變形控制點
+        lockScalingX: true,       // 鎖定 X 軸縮放
+        lockScalingY: true,       // 鎖定 Y 軸縮放
+        lockRotation: true,       // 鎖定旋轉
+        lockSkewingX: true,       // 鎖定 X 軸傾斜
+        lockSkewingY: true,       // 鎖定 Y 軸傾斜
+        lockScalingFlip: true     // 禁止翻轉縮放
+
+    });
+    let d = new Date();
+    var movingactive = false;
+    var origin_X_Y = [];
+    line.on('moving', function (e) {
+        if (!movingactive) {
+            movingactive = true;
+            origin_X_Y = [line.left, line.top];
+            console.log(line.target);
+        }
+    });
+    line.on('modified', function (e) {
+
+
+        const curr_X_Y = [line.left, line.top];
+        const Offset_X_Y = [(curr_X_Y[0] - origin_X_Y[0]), (curr_X_Y[1] - origin_X_Y[1])];
+        console.log(Offset_X_Y);
+        line.set({ x1: line.x1 + Offset_X_Y[0], y1: line.y1 + Offset_X_Y[1], x2: line.x2 + Offset_X_Y[0], y2: line.y2 + Offset_X_Y[1] });
+        console.log(e.target.toJSON())
+        movingactive = false;
+        line.setCoords();
+        canvas.requestRenderAll();
+
+    });
     addObject(line);
-    position[0] += 10;
-    position[1] += 10;
-    
+    line.set({ absPoints: [{ x: line.x1, y: line.y1 }, { x: line.x2, y: line.y2 }] });
 });
+
+
+var Circle = [];
+canvas.on('mouse:down', (e) => {
+
+    const target = e.target;
+
+    if (!target && LineActive) {
+        Circle.forEach(c => {
+            canvas.remove(c);
+        });
+        LineActive = false;
+        canvas.requestRenderAll();
+        Circle = [];
+        return;
+    }
+    if (target && target.type === 'line' && !LineActive) {
+        LineActive = true;
+        const line_json = target.toJSON();//取出線的json，用於計算
+        const lint_center = { x: target.left + target.width / 2, y: target.top + target.height / 2 };
+
+        const absPoints = { x1: lint_center.x + line_json.x1, y1: lint_center.y + line_json.y1, x2: lint_center.x + line_json.x2, y2: lint_center.y + line_json.y2 };
+        target.setCoords();
+        canvas.requestRenderAll();
+        const handle1 = makeHandle(absPoints.x1, absPoints.y1);
+        const handle2 = makeHandle(absPoints.x2, absPoints.y2);
+        handle1.on('moving', () => {
+            target.set({ x1: handle1.left, y1: handle1.top });
+            target.setCoords();
+            canvas.requestRenderAll();
+        });
+        handle2.on('moving', () => {
+            target.set({ x2: handle2.left, y2: handle2.top });
+            target.setCoords();
+            canvas.requestRenderAll();
+        });
+
+
+        Circle.push(handle1);
+        Circle.push(handle2);
+        // 將 handle 加到 canvas（讓它們在線上方）
+        canvas.add(handle1, handle2);
+    }
+});
+
+
+function makeHandle(left, top) {
+    return new fabric.Circle({
+        left, top,
+        radius: 8,
+        fill: '#fff',
+        stroke: '#0088ff',
+        strokeWidth: 1,
+        hasControls: false,
+        hasBorders: false,
+        originX: 'center',
+        originY: 'center',
+    });
+}
 
 $('#addRectangle').click(() => {
     //框線
