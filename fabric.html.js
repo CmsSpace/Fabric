@@ -40,9 +40,11 @@ function prepareCanvasForSave() {
 // --------------------------------
 function saveState() {
     if (isLoading) return;
-
     prepareCanvasForSave(); // ✅ 附加影像資料
-    const currentState = JSON.stringify(canvas.toJSON(JSON_PROPS));
+    let canvasJson = canvas.toJSON(JSON_PROPS);
+    //排除線的端點，不要儲存
+    canvasJson.objects = canvasJson.objects.filter(obj => obj.proptype !== "linepoint");
+    const currentState = JSON.stringify(canvasJson);
 
     if (history.length === 0 || history[history.length - 1] !== currentState) {
         history.push(currentState);
@@ -63,33 +65,18 @@ function loadStateString(stateString) {
 
     canvas.loadFromJSON(stateString, async () => {
         const objs = canvas.getObjects();
-
-        // for (const obj of objs) {
-        //     let _proptype = obj.proptype ?? obj.type;
-        //     if (_proptype === 'qrcode') {
-        //         if (obj.imageData) {
-        //             const img = new Image();
-        //             img.src = obj.imageData;
-        //             await new Promise(r => (img.onload = r));
-        //             obj.setElement(img);
-        //         } else {
-        //             await refreshQRCodeImage(obj, obj.text);
-        //         }
-        //     }
-        //     if (_proptype === 'barcode') {
-        //         if (obj.imageData) {
-        //             const img = new Image();
-        //             img.src = obj.imageData;
-        //             await new Promise(r => (img.onload = r));
-        //             obj.setElement(img);
-        //         } else {
-        //             await generateBarcode(obj, obj.text);
-        //         }
-        //     }
-        //     if (_proptype === 'textbox') {
-        //         obj.initDimensions();
-        //     }
-        // }
+        for (const obj of objs) {
+            if (obj.type === 'line') {
+                obj.selectable = true;         // 可選取
+                obj.hasControls = false;       // 不顯示變形控制點
+                obj.lockScalingX = true;       // 鎖定 X 軸縮放
+                obj.lockScalingY = true;       // 鎖定 Y 軸縮放
+                obj.lockRotation = true;       // 鎖定旋轉
+                obj.lockSkewingX = true;       // 鎖定 X 軸傾斜
+                obj.lockSkewingY = true;       // 鎖定 Y 軸傾斜
+                obj.lockScalingFlip = true;     // 禁止翻轉縮放
+            }
+        }
 
         canvas.renderAll();
         isLoading = false;
@@ -179,32 +166,32 @@ document.addEventListener('keydown', function (event) {
 // === 🧩 JSON 儲存與載入功能 ===
 // --------------------------------
 $('#btnSaveJson,#btnSave').click(() => {
-    prepareCanvasForSave();
-
-    ModalDraggable({
-        id: 'saveModal',
-        title: '儲存畫布 JSON',
-        width: 800,
-
-        content: `<textarea id="saveJsonText" style="width:100%;height:300px;">${JSON.stringify(canvas.toJSON(JSON_PROPS), null, 2)}</textarea>`,
-    });
-    return;
+    saveState();
     const jsonData = canvas.toJSON(JSON_PROPS);
     jsonData.canvasWidth = canvas.getWidth();
     jsonData.canvasHeight = canvas.getHeight();
     jsonData.unit = $("#unit").val(); // 或 'px'、'cm'、自訂單位
-    const json = JSON.stringify(jsonData, null, 2);
+    const json = JSON.stringify(jsonData);
+    btnSaveJson($('#FabricUid').val(), json);
+    return;
+    // const jsonData = canvas.toJSON(JSON_PROPS);
+    // jsonData.canvasWidth = canvas.getWidth();
+    // jsonData.canvasHeight = canvas.getHeight();
+    // jsonData.unit = $("#unit").val(); // 或 'px'、'cm'、自訂單位
+    // const json = JSON.stringify(jsonData, null, 2);
 
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'canvas.json';
-    a.click();
-    URL.revokeObjectURL(url);
+    // const blob = new Blob([json], { type: 'application/json' });
+    // const url = URL.createObjectURL(blob);
+    // const a = document.createElement('a');
+    // a.href = url;
+    // a.download = 'canvas.json';
+    // a.click();
+    // URL.revokeObjectURL(url);
 });
 
-$('#btnLoadJson').change(function (e) {
+$('#btnLoadJson,#btnLoad').click(function (e) {
+    btnLoadJson();
+    return;
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
@@ -231,7 +218,7 @@ function refreshLayers() {
     // 顯示從上層 (最前面) 開始列出，故使用 reverse
     canvas.getObjects().slice().reverse().forEach((obj) => {
         const _proptype = obj.proptype ?? obj.type;
-        if (_proptype == "circle") return;
+        if (_proptype == "linepoint") return;
         const name = `${_proptype}` + (_proptype == 'textbox' || (_proptype == 'qrcode' || _proptype == 'barcode') ? ` (${obj.propId})` : '');
 
         const item = $('<div>').addClass('layer-item');
@@ -527,86 +514,6 @@ canvas.on('selection:cleared', e => { refreshLayers(); updatePropertyPanel(null)
 canvas.on('object:moving', e => updatePropertyPanel(e.target));// 移動或縮放時，即時更新面板數據 (選單屬性)
 
 
-// 雙擊偵測邏輯
-let lastClickTime = 0;
-const doubleClickThreshold = 300; // 毫秒內視為雙擊
-
-canvas.on('mouse:down', function (e) {
-    return;
-    const currentTime = new Date().getTime();
-    const timeDiff = currentTime - lastClickTime;
-    lastClickTime = currentTime;
-
-    const target = e.target;
-    if (target && timeDiff < doubleClickThreshold) {
-
-        //console.log(active);
-
-        if (document.getElementById('customModal')) return;
-        const active = canvas.getActiveObject();
-        var clonedHTML = "";
-        var openModalBool = false;
-        switch (active.proptype) {
-            case 'textbox':
-                clonedHTML = document.getElementById('textboxModal').innerHTML;
-                //openModalBool = true;
-                break;
-            case 'qrcode':
-
-                break;
-        }
-
-        const porpObj = {};
-        const openModalDraggable = () => ModalDraggable({
-            id: 'customModal',
-            title: active.propId,
-            content: clonedHTML,
-            confirm: function (m) {
-                console.log(porpObj);
-                m.remove();
-
-            },
-            onShown: function (modal) {
-                //JQuery
-                const $this = $(modal);
-                switch (active.proptype) {
-                    case 'textbox':
-                        porpObj.propText = $this.find("#propText");
-                        porpObj.fontSize = $this.find("#fontSize");
-                        porpObj.propTextAlign = $this.find("#propTextAlign");
-                        porpObj.propFontFamily = $this.find("#propFontFamily");
-
-                        porpObj.propText.val(active.text);
-                        porpObj.fontSize.val(parseFloat(active.fontSize));
-                        porpObj.propTextAlign.val(active.textAlign);
-                        porpObj.propFontFamily.val(active.fontFamily);
-
-                    case 'propTextAlign':
-                        //對齊
-                        active.set({ textAlign: $(this).val() });
-                        break;
-                    case 'propFontFamily':
-                        //字型
-                        active.set({ fontFamily: $(this).val() });
-                        break;
-
-
-                }
-
-
-                // console.log('Modal 已顯示');
-                // modal.querySelector('#nameInput')?.focus();
-            },
-            onHidden: function (modal) {
-                console.log('Modal 已關閉');
-            }
-        });
-
-        if (openModalBool) openModalDraggable();
-    }
-});
-
-// 2. DOM (jQuery) 事件：
 
 // === 畫布大小 ===
 $('#canvasSize').on('change', function () {
@@ -656,17 +563,14 @@ function getModuleCount(_type) {
     return qrcodes.length;
 }
 
-var LineActive = false;
+
 $('#addLine').click(() => {
-    // //直線
-    // const line = new fabric.Line([50, position[0], 150, position[1]], { stroke: 'black', strokeWidth: 2, strokeUniform: true });
-    // addObject(line);
-    // position[0] += 10;
-    // position[1] += 10;
-    const x1 = 100, y1 = 100, x2 = 150, y2 = 150;
+    //直線
+
+    const x1 = 100 + position[0], y1 = 100 + position[1], x2 = 150 + position[0], y2 = 150 + position[1];
     const line = new fabric.Line([x1, y1, x2, y2], {
-        stroke: '#0088ff',
-        strokeWidth: 4,
+        stroke: '#000',
+        strokeWidth: 2,
         selectable: true,         // 可選取
         hasControls: false,       // 不顯示變形控制點
         lockScalingX: true,       // 鎖定 X 軸縮放
@@ -677,78 +581,85 @@ $('#addLine').click(() => {
         lockScalingFlip: true     // 禁止翻轉縮放
 
     });
-    let d = new Date();
-    var movingactive = false;
-    var origin_X_Y = [];
-    line.on('moving', function (e) {
-        if (!movingactive) {
-            movingactive = true;
-            origin_X_Y = [line.left, line.top];
-            console.log(line.target);
-        }
-    });
-    line.on('modified', function (e) {
 
-
-        const curr_X_Y = [line.left, line.top];
-        const Offset_X_Y = [(curr_X_Y[0] - origin_X_Y[0]), (curr_X_Y[1] - origin_X_Y[1])];
-        console.log(Offset_X_Y);
-        line.set({ x1: line.x1 + Offset_X_Y[0], y1: line.y1 + Offset_X_Y[1], x2: line.x2 + Offset_X_Y[0], y2: line.y2 + Offset_X_Y[1] });
-        console.log(e.target.toJSON())
-        movingactive = false;
-        line.setCoords();
-        canvas.requestRenderAll();
-
-    });
+    position[0] += 10;
+    position[1] += 10;
     addObject(line);
-    line.set({ absPoints: [{ x: line.x1, y: line.y1 }, { x: line.x2, y: line.y2 }] });
 });
 
 
 var Circle = [];
-canvas.on('mouse:down', (e) => {
-
-    const target = e.target;
-
-    if (!target && LineActive) {
-        Circle.forEach(c => {
-            canvas.remove(c);
-        });
-        LineActive = false;
-        canvas.requestRenderAll();
-        Circle = [];
-        return;
+var LineActive = false;
+var movingactive = false;
+var origin_X_Y = [];
+canvas.on('object:moving', e => {
+    if (e.target.type == "line" && !movingactive) {
+        movingactive = true;
+        removeLineEndpoints();
     }
-    if (target && target.type === 'line' && !LineActive) {
-        LineActive = true;
-        const line_json = target.toJSON();//取出線的json，用於計算
-        const lint_center = { x: target.left + target.width / 2, y: target.top + target.height / 2 };
-
-        const absPoints = { x1: lint_center.x + line_json.x1, y1: lint_center.y + line_json.y1, x2: lint_center.x + line_json.x2, y2: lint_center.y + line_json.y2 };
-        target.setCoords();
-        canvas.requestRenderAll();
-        const handle1 = makeHandle(absPoints.x1, absPoints.y1);
-        const handle2 = makeHandle(absPoints.x2, absPoints.y2);
-        handle1.on('moving', () => {
-            target.set({ x1: handle1.left, y1: handle1.top });
-            target.setCoords();
-            canvas.requestRenderAll();
-        });
-        handle2.on('moving', () => {
-            target.set({ x2: handle2.left, y2: handle2.top });
-            target.setCoords();
-            canvas.requestRenderAll();
-        });
-
-
-        Circle.push(handle1);
-        Circle.push(handle2);
-        // 將 handle 加到 canvas（讓它們在線上方）
-        canvas.add(handle1, handle2);
+});
+canvas.on('object:modified', e => {
+    if (e.target.type == "line") {
+        let _evn = e.target;
+        const line_json = _evn.toJSON();//取出線的json，用於計算
+        const lint_center = { x: _evn.left + _evn.width / 2, y: _evn.top + _evn.height / 2 };
+        _evn.set({ x1: lint_center.x + line_json.x1, y1: lint_center.y + line_json.y1, x2: lint_center.x + line_json.x2, y2: lint_center.y + line_json.y2 });
+        movingactive = false;
+        _evn.setCoords();
+        appendLineEndpoints(_evn);
     }
 });
 
+canvas.on('mouse:down', (e) => {
+    const target = e.target;
+    let _type = target ? target.proptype ?? target.type : {};
+    if (!target) {
+        removeLineEndpoints();
+        return;
+    } else if (target.type !== 'line' && _type !== 'linepoint') {
+        removeLineEndpoints();
+        return;
+    }
+    if (target && target.type === 'line') {
+        appendLineEndpoints(target);
+    }
+});
 
+function appendLineEndpoints(target) {
+    removeLineEndpoints();
+    const line_json = target.toJSON();//取出線的json，用於計算
+    const lint_center = { x: target.left + target.width / 2, y: target.top + target.height / 2 };
+
+    const absPoints = { x1: lint_center.x + line_json.x1, y1: lint_center.y + line_json.y1, x2: lint_center.x + line_json.x2, y2: lint_center.y + line_json.y2 };
+    target.setCoords();
+    canvas.requestRenderAll();
+    const handle1 = makeHandle(absPoints.x1, absPoints.y1);
+    const handle2 = makeHandle(absPoints.x2, absPoints.y2);
+    handle1.on('moving', () => {
+        target.set({ x1: handle1.left, y1: handle1.top });
+        target.set({ x2: handle2.left, y2: handle2.top });
+        target.setCoords();
+        canvas.requestRenderAll();
+    });
+    handle2.on('moving', () => {
+        target.set({ x1: handle1.left, y1: handle1.top });
+        target.set({ x2: handle2.left, y2: handle2.top });
+        target.setCoords();
+        canvas.requestRenderAll();
+    });
+    Circle.push(handle1);
+    Circle.push(handle2);
+    canvas.add(handle1, handle2);
+};
+
+function removeLineEndpoints() {
+    canvas.getObjects().forEach(obj => {
+        if (obj.proptype === "linepoint") {
+            canvas.remove(obj);
+            canvas.requestRenderAll();
+        }
+    });
+}
 function makeHandle(left, top) {
     return new fabric.Circle({
         left, top,
@@ -760,6 +671,7 @@ function makeHandle(left, top) {
         hasBorders: false,
         originX: 'center',
         originY: 'center',
+        proptype: 'linepoint'
     });
 }
 
@@ -795,27 +707,21 @@ $('#addText').click(() => {
     });
     position[0] += 10;
     position[1] += 10;
-
     addObject(textbox);
-    // // 将文本添加到画布中
-    // canvas.add(textbox)
-    // canvas.setActiveObject(textbox);
-    // canvas.requestRenderAll();
-
 });
 
 $('#addQR').click(async function () {
     //QRCode
-
     // 1️⃣ 生成 QRCode (使用 tempDiv)
-    var defaulttext = "模擬QRCode";
+    var defaulttext = "模擬QRCode模擬";
     //注意qrcode.js不能吃中文
-    const encodedText = encodeURI(defaulttext);
+
     const defaultsize = 128;
+
 
     const tempDiv = document.createElement('div');
     new QRCode(tempDiv, {
-        text: encodedText,
+        text: defaulttext,
         width: defaultsize,
         height: defaultsize,
         correctLevel: QRCodeCorrectLevel(QRCode.CorrectLevel, "L")
@@ -835,7 +741,7 @@ $('#addQR').click(async function () {
         height: defaultsize,
         selectable: true,
         hasControls: true,
-        //type: , 
+        //type: ,
         proptype: 'qrcode',// 自訂類型方便辨識
         comment: '模擬QRCode',
         text: defaulttext,
@@ -846,25 +752,19 @@ $('#addQR').click(async function () {
     position[1] += 10;
 
     addObject(qr);
-    // //addObject(qr);
-    // // ✅ 生成真實 QRCode 圖像並替換內容
-    // await refreshQRCodeImage(qr, qr.text);
-
 });
 
 async function refreshQRCodeImage(fabricObj, text, size = 128) {
     if (!fabricObj || fabricObj.proptype !== 'qrcode') return;
-
     const qrText = text || fabricObj.text || '';
     const encodedText = encodeURI(qrText);
-    //const qrSize = size || 128;
     const qrWidth = fabricObj.width ?? size;
     const qrheight = fabricObj.height ?? size;
     const qrLv = fabricObj.propQRLevel ?? "L";
 
     const tempDiv = document.createElement('div');
     new QRCode(tempDiv, {
-        text: encodedText,
+        text: qrText,
         width: qrWidth,
         height: qrheight,
         correctLevel: QRCodeCorrectLevel(QRCode.CorrectLevel, qrLv)
@@ -901,7 +801,7 @@ function QRCodeCorrectLevel(e, lv) {
 
 $('#addBarcode').click(async () => {
     //條碼
-    //Code 128 (通用):CODE128 
+    //Code 128 (通用):CODE128
     //EAN 13 (商品):EAN13
     //Code 128 (通用):CODE128
     const barcodeFormat = 'CODE128';//預設
@@ -949,7 +849,7 @@ $('#addBarcode').click(async () => {
         barcodeFormat: barcodeFormat,
         // 🚫 禁止非等比縮放
         lockUniScaling: true,
-        lockScalingFlip: true,// 防止負縮放導致反轉        
+        lockScalingFlip: true,// 防止負縮放導致反轉
     });
 
 
@@ -1013,6 +913,8 @@ $('#sendBackward').click(() => {
     updateUndoRedoButtons();
     const [w, h] = $("#canvasSize").val().split('x').map(Number);
     $("#canvasWidth").val(w);
-    $("#canvasHeight").val(h)
+    $("#canvasHeight").val(h);
+    $("#FabricUid").val(generateGUID());
+
 })();
 

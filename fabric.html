@@ -7,6 +7,8 @@
     <script src="fabric.min.js"></script>
     <script src="jquery.min.js"></script>
     <link href="bootstrap.min.css" rel="stylesheet" />
+    <script type="text/javascript" src="generateGUID.js"></script>
+    <script type="text/javascript" src="localStorage.js"></script>
     <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script> -->
     <style>
@@ -226,7 +228,7 @@
 </head>
 
 <body>
-
+    <input id="FabricUid" hidden>
 
     <!-- 中間主區域 -->
     <div id="main">
@@ -419,14 +421,14 @@
 
         </div>
     </div>
-  
+    <script src="Save.js"></script>
     <script src="fabric.html.js"></script>
-    <script src="qrcode.min.js"></script>
+    <script src="qrcode.js"></script>
     <script src="jsbarcode.all.min.js"></script>
     <script src="BarcodeImage.js"></script>
     <script src="modal-draggable.js"></script>
     <script src="toolbox.js"></script>
- 
+    <!-- <script src="bootstrap.bundle.min.js"></script> -->
     <script>
         // === 尺規繪製 ===
         const dpi = 96; // 假設 1 inch = 25.4mm = 96px

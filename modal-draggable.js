@@ -44,6 +44,7 @@ function ModalDraggable(Event) {
                         left: ${Event.left};
                         width: ${Event.width};
                         height: ${Event.height};
+                        flex-direction:column;
                         background-color: #fff;
                         border: 1px solid #ccc;
                         border-radius: 0.5rem;
@@ -64,13 +65,13 @@ function ModalDraggable(Event) {
 
     const modalBody = document.createElement('div');
     modalBody.classList.add('modal-body');
-    modalBody.style = `padding: 1rem;`;
+    modalBody.style = `padding: 1rem;flex-grow: 1;overflow-y: auto;`;
     modalBody.innerHTML = Event.content ?? '這是一個模仿 Bootstrap 的 modal，使用純 JS 和 CSS 製作，沒有遮罩。';
 
     const modalFooter = document.createElement('div');
     modalFooter.classList.add('modal-footer');
     modalFooter.style = `padding: 0.75rem 1rem;
-                        text-align: right;
+                        text-align: center;
                         border-top: 1px solid #ddd;
                         background-color: #f9f9f9;
                         border-radius: 0 0 0.5rem 0.5rem;`;
@@ -116,9 +117,9 @@ function ModalDraggable(Event) {
     modal._onHidden = Event.onHidden;
 
     //顯示
-    modal.style.display = 'block';
+    modal.style.display = 'flex';
     if (typeof modal._onShown === 'function') modal._onShown(modal);
-
+    modalBody.offsetHeight = modal.offsetHeight - modalHeader.offsetHeight - modalFooter.offsetHeight;
     // 拖曳功能
     let isDragging = false;
     let offsetX = 0;
