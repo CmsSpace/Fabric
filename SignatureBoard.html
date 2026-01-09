@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link href="wwwroot/lib/bootstrap.min.css">
+    <script src="wwwroot/lib/jquery.min.js"></script>
+    <script src="wwwroot/lib/fabric.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #f5f5f5;
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container-fluid {
+
+            max-width: 800px;
+        }
+
+        .signature-header {
+            background: #fff;
+            padding: 8px 12px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .signature-header h5 {
+            margin: 0;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .toolbar select {
+            font-size: 0.85rem;
+            padding: 4px 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .toolbar button {
+            font-size: 0.85rem;
+            padding: 6px 12px;
+            white-space: nowrap;
+        }
+
+        .canvas-wrapper {
+            background: #fff;
+            /* padding: 10px;
+            margin-top: 10px; */
+            border: 1px solid #ddd;
+        }
+
+        #signatureCanvas {
+            border: 1px solid #999;
+            cursor: crosshair;
+            display: block;
+            touch-action: none;
+        }
+
+        .canvas-container {
+            margin: 0 !important;
+        }
+
+        #exportResultContainer {
+            background: #fff;
+            padding: 10px;
+            margin-top: 10px;
+            border: 1px solid #ddd;
+        }
+
+        #exportedImage {
+            max-width: 100%;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container-fluid">
+        <!-- 頂部工具列 -->
+        <div class="signature-header">
+            <h5>✍️ 數位簽名板</h5>
+            <div class="toolbar">
+                <select id="colorSelect" class="form-select form-select-sm" style="width: auto;">
+                    <option value="#000000">⚫ 黑色</option>
+                    <option value="#FF0000">🔴 紅色</option>
+                    <option value="#0066FF">🔵 藍色</option>
+                    <option value="#00AA00">🟢 綠色</option>
+                    <option value="#FF6600">🟠 橙色</option>
+                    <option value="#9900CC">🟣 紫色</option>
+                </select>
+
+                <select id="widthSelect" class="form-select form-select-sm" style="width: auto;">
+                    <option value="1">細 (1px)</option>
+                    <option value="2" selected>中 (2px)</option>
+                    <option value="3">粗 (3px)</option>
+                    <option value="5">特粗 (5px)</option>
+                    <option value="8">極粗 (8px)</option>
+                </select>
+
+                <button id="undoBtn" class="btn btn-sm btn-secondary">↶ 復原</button>
+                <button id="clearBtn" class="btn btn-sm btn-warning">清除</button>
+                <button id="exportPNGBtn" class="btn btn-sm btn-primary">存PNG</button>
+                <button id="exportJPGBtn" class="btn btn-sm btn-success">存JPG</button>
+            </div>
+        </div>
+
+        <!-- 畫布區域 -->
+        <div class="canvas-wrapper">
+            <canvas id="signatureCanvas"></canvas>
+        </div>
+
+        <!-- 匯出預覽 -->
+        <div id="exportResultContainer" style="display: none;">
+            <h6>預覽：</h6>
+            <img id="exportedImage" alt="簽名預覽">
+        </div>
+    </div>
+
+    <script>
+        $(function () {
+
+            // 計算畫布尺寸（適應螢幕）            
+            let _W = document.body.clientWidth;
+            let WSize = _W > 800 ? 800 : 600;
+            let HSize = _W > 800 ? 350 : 266;
+            $('.container-fluid').css({ width: WSize });
+            $('#signatureCanvas').css({ width: WSize, height: HSize });
+
+            // 初始化畫布
+
+            const canvas = new fabric.Canvas('signatureCanvas', {
+                isDrawingMode: true,
+                width: WSize,
+                height: HSize,
+                backgroundColor: '#fff'
+            });
+            // canvas.setDimensions({WSize,HSize});
+            // canvas.setHeight(HSize);
+            //  canvas.renderAll();
+            // 設定筆刷
+            const brush = new fabric.PencilBrush(canvas);
+            brush.color = '#000000';
+            brush.width = 2;
+            canvas.freeDrawingBrush = brush;
+
+            // 歷史記錄
+            let history = [];
+            canvas.on('path:created', function () {
+                history.push(JSON.stringify(canvas.toJSON()));
+                if (history.length > 20) history.shift(); // 限制20步
+            });
+
+            // 顏色選擇
+            $('#colorSelect').on('change', function () {
+                brush.color = $(this).val();
+            });
+
+            // 筆觸粗細
+            $('#widthSelect').on('change', function () {
+                brush.width = parseInt($(this).val());
+            });
+
+            // 復原
+            $('#undoBtn').on('click', function () {
+                if (history.length > 0) {
+                    history.pop();
+                    if (history.length > 0) {
+                        canvas.loadFromJSON(history[history.length - 1], canvas.renderAll.bind(canvas));
+                    } else {
+                        canvas.clear();
+                        canvas.setBackgroundColor('#ffffff', canvas.renderAll.bind(canvas));
+                    }
+                }
+            });
+
+            // 清除
+            $('#clearBtn').on('click', function () {
+                canvas.clear();
+                canvas.setBackgroundColor('#ffffff', canvas.renderAll.bind(canvas));
+                history = [];
+                $('#exportResultContainer').hide();
+            });
+
+            // 匯出 PNG（透明背景）
+            $('#exportPNGBtn').on('click', function () {
+                const originalBg = canvas.backgroundColor;
+                canvas.backgroundColor = null;
+
+                const dataURL = canvas.toDataURL({
+                    format: 'png',
+                    multiplier: 2,
+                    quality: 1
+                });
+
+                canvas.backgroundColor = originalBg;
+                canvas.renderAll();
+
+                downloadImage(dataURL, 'signature.png');
+                showPreview(dataURL);
+            });
+
+            // 匯出 JPG（白底）
+            $('#exportJPGBtn').on('click', function () {
+                const dataURL = canvas.toDataURL({
+                    format: 'jpeg',
+                    quality: 0.95,
+                    multiplier: 2
+                });
+
+                downloadImage(dataURL, 'signature.jpg');
+                showPreview(dataURL);
+            });
+
+            // 下載圖片
+            function downloadImage(dataURL, filename) {
+                const link = document.createElement('a');
+                link.download = filename;
+                link.href = dataURL;
+                link.click();
+            }
+
+            // 顯示預覽
+            function showPreview(dataURL) {
+                $('#exportedImage').attr('src', dataURL);
+                $('#exportResultContainer').fadeIn();
+            }
+
+            // // 響應式調整
+            let resizeTimer;
+            $(window).on('resize orientationchange', function () {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(function () {
+                    let _W = document.body.clientWidth;
+                    let WSize = _W > 800 ? 800 : 600;
+                    let HSize = _W > 800 ? 350 : 266;
+                    $('.container-fluid').css({ width: WSize });
+                    canvas.setDimensions({
+                        width: WSize,
+                        height: HSize
+                    });
+                }, 300);
+            });
+
+            // 觸控優化
+            canvas.on('touch:gesture', function (e) {
+                e.e.preventDefault();
+            });
+        });
+    </script>
+</body>
+
+</html>
